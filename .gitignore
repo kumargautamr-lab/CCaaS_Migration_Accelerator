@@ -1,0 +1,13 @@
+.env
+.venv/
+.agents/
+.codex/
+work/
+*.code-workspace
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
