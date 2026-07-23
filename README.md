@@ -5,8 +5,9 @@ AWS Connect Migration Accelerator Tool is a local LangChain + OpenRouter + Strea
 ## What it does
 
 - provides a downloadable `.xlsx` template with dedicated worksheets for the instance, skills, agents, contact flows, and DNIS
-- accepts only the completed Excel template through the UI; there is no chat or manual-entry workflow
-- uses a LangChain model through OpenRouter to normalize the workbook into a typed `ConnectInstanceSpec`
+- accepts a completed Excel template or a deterministic quick form; there is no chat workflow
+- parses the downloadable template deterministically into a typed `ConnectInstanceSpec`
+- uses a LangChain model through OpenRouter only as a fallback for non-template workbooks
 - validates identity-management rules and AWS-region syntax
 - renders Terraform deterministically; the model never emits arbitrary HCL
 - previews and downloads `main.tf`, `variables.tf`, and `outputs.tf` as a ZIP
@@ -32,11 +33,12 @@ AWS Connect Migration Accelerator Tool is a local LangChain + OpenRouter + Strea
    OPENROUTER_API_KEY=your-key-here
    OPENROUTER_MODEL=provider/model-slug
    OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+   OPENROUTER_MAX_TOKENS=8192
    ```
 
    Do not commit `.env` or place API keys, passwords, AWS credentials, or customer data in the workbook.
 
-   Models advertising `structured_outputs` or `response_format` on their OpenRouter model page are preferred. The application first requests strict JSON Schema output, then performs a JSON-mode generation and one repair attempt for less-capable models.
+   The completed downloadable template is parsed locally and does not call OpenRouter. For non-template workbooks, models advertising `structured_outputs` or `response_format` are preferred. The fallback requests strict JSON Schema output, then performs a JSON-mode generation and one repair attempt.
 
 3. Start the UI:
 
@@ -44,7 +46,13 @@ AWS Connect Migration Accelerator Tool is a local LangChain + OpenRouter + Strea
    streamlit run app.py
    ```
 
-4. In the UI, download the requirements template, complete it, upload the saved `.xlsx` file, and select **Generate Terraform package**.
+4. In the UI, either upload a completed requirements template or use the quick form for a smaller task.
+
+## Quick form
+
+The quick form creates Terraform without calling the AI model. It uses explicit fields for Amazon Connect instance settings, skills, and agents. An agent's assigned skill must exactly match a skill name. Use the Excel template for contact flows and DNIS-to-contact-flow associations.
+
+The focused **Add contact flow to existing DNIS** form is available for a smaller association task. It accepts an existing Connect instance ID and Amazon Connect phone-number ID, creates the new contact flow, and generates only the Terraform association package. It does not claim a new number or create another Connect instance.
 
 ## Excel template
 
