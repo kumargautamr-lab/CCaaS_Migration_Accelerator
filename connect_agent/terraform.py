@@ -6,7 +6,7 @@ import uuid
 from io import BytesIO
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from .models import ConnectInstanceSpec
+from .models import ConnectInstanceSpec, ContactFlowSpec
 
 
 def _hcl_string(value: str) -> str:
@@ -257,6 +257,73 @@ output "claimed_dnis_numbers" {{
     if spec.identity_management_type == "CONNECT_MANAGED" and spec.agents:
         files["terraform.tfvars.example"] = tfvars
     return files
+
+
+def render_existing_dnis_contact_flow_files(
+    *,
+    region: str,
+    instance_id: str,
+    phone_number_id: str,
+    flow: ContactFlowSpec,
+) -> dict[str, str]:
+    """Render a focused package that attaches a new flow to an existing DNIS."""
+    flow_key = _resource_name(flow.name)
+    main = f'''terraform {{
+  required_version = ">= 1.5.0"
+  required_providers {{
+    aws = {{ source = "hashicorp/aws" version = "~> 6.0" }}
+  }}
+}}
+
+provider "aws" {{ region = var.aws_region }}
+
+resource "aws_connect_contact_flow" "{flow_key}" {{
+  instance_id = var.connect_instance_id
+  name        = {_hcl_string(flow.name)}
+  description = {_hcl_string(flow.description)}
+  type        = {_hcl_string(flow.type)}
+  content = <<-JSON
+{_flow_content(flow.name, flow.welcome_message)}
+JSON
+}}
+
+resource "aws_connect_phone_number_contact_flow_association" "{flow_key}" {{
+  phone_number_id = var.existing_dnis_phone_number_id
+  instance_id     = var.connect_instance_id
+  contact_flow_id = aws_connect_contact_flow.{flow_key}.contact_flow_id
+}}
+'''
+    variables = f'''variable "aws_region" {{
+  description = "AWS region containing the existing Amazon Connect instance"
+  type        = string
+  default     = {_hcl_string(region)}
+}}
+
+variable "connect_instance_id" {{
+  description = "ID of the existing Amazon Connect instance"
+  type        = string
+  default     = {_hcl_string(instance_id)}
+}}
+
+variable "existing_dnis_phone_number_id" {{
+  description = "Amazon Connect phone-number ID for the existing DNIS"
+  type        = string
+  default     = {_hcl_string(phone_number_id)}
+}}
+'''
+    outputs = f'''output "contact_flow_id" {{
+  value = aws_connect_contact_flow.{flow_key}.contact_flow_id
+}}
+
+output "existing_dnis_phone_number_id" {{
+  value = var.existing_dnis_phone_number_id
+}}
+'''
+    return {
+        "main.tf": main,
+        "variables.tf": variables,
+        "outputs.tf": outputs,
+    }
 
 
 def files_to_zip(files: dict[str, str]) -> bytes:

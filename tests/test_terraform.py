@@ -1,5 +1,5 @@
 from connect_agent.models import AgentSpec, ConnectInstanceSpec, ContactFlowSpec, DnisSpec, SkillSpec
-from connect_agent.terraform import render_files
+from connect_agent.terraform import render_existing_dnis_contact_flow_files, render_files
 import pytest
 
 
@@ -67,3 +67,17 @@ def test_escapes_terraform_interpolation_in_flow_message():
         contact_flows=[ContactFlowSpec(name="Main", welcome_message="Hello ${danger}")],
     )
     assert "$${danger}" in render_files(spec)["main.tf"]
+
+
+def test_renders_existing_dnis_contact_flow_association_without_claiming_number():
+    files = render_existing_dnis_contact_flow_files(
+        region="us-east-1",
+        instance_id="instance-id",
+        phone_number_id="phone-number-id",
+        flow=ContactFlowSpec(name="Existing DNIS Flow", welcome_message="Welcome"),
+    )
+    main = files["main.tf"]
+    assert 'resource "aws_connect_contact_flow" "existing_dnis_flow"' in main
+    assert 'resource "aws_connect_phone_number_contact_flow_association" "existing_dnis_flow"' in main
+    assert "resource \"aws_connect_phone_number\"" not in main
+    assert "var.existing_dnis_phone_number_id" in main

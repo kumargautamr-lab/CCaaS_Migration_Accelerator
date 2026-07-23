@@ -3,10 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from dotenv import load_dotenv
+from pydantic import ValidationError
 import streamlit as st
 
 from connect_agent.agent import interpret_requirements
-from connect_agent.input_parser import workbook_to_prompt
+from connect_agent.input_parser import (
+    NotTemplateWorkbookError,
+    workbook_to_prompt,
+    workbook_to_spec,
+)
+from connect_agent.manual_ui import existing_dnis_flow_builder, manual_builder
 from connect_agent.models import AgentResponse
 from connect_agent.terraform import files_to_zip, render_files
 
@@ -168,13 +174,50 @@ def show_package(response: AgentResponse, key_prefix: str) -> None:
     )
 
 
+def workbook_error_message(exc: Exception) -> str:
+    if isinstance(exc, ValidationError):
+        details = []
+        for error in exc.errors():
+            location = " → ".join(str(part) for part in error["loc"])
+            details.append(f"{location}: {error['msg']}")
+        return "Workbook validation failed:\n\n" + "\n\n".join(details)
+    return str(exc)
+
+
+def show_focused_package(
+    files: dict[str, str],
+    *,
+    summary: str,
+    filename: str,
+    key_prefix: str,
+) -> None:
+    st.success(summary)
+    selected = st.selectbox(
+        "Terraform file",
+        list(files),
+        key=f"{key_prefix}_file",
+        label_visibility="collapsed",
+    )
+    st.code(files[selected], language="hcl")
+    st.download_button(
+        "Download Terraform package",
+        data=files_to_zip(files),
+        file_name=filename,
+        mime="application/zip",
+        type="primary",
+        key=f"{key_prefix}_download",
+        use_container_width=True,
+    )
+
+
 with st.sidebar:
-    st.caption("AI provider: OpenRouter")
+    st.caption("Template parser: deterministic · AI fallback: OpenRouter")
     st.subheader("Workbook workflow")
     st.markdown(
         "1. Download the template\n\n"
         "2. Complete its six worksheets\n\n"
-        "3. Upload the completed `.xlsx` file"
+        "3. Upload the completed `.xlsx` file\n\n"
+        "Or use the quick form for smaller tasks."
     )
     st.divider()
     st.subheader("Guardrails")
@@ -225,9 +268,21 @@ generate_clicked = st.button(
 
 if generate_clicked and upload is not None:
     try:
-        request_text = workbook_to_prompt(upload.getvalue(), upload.name)
-        with st.spinner("Interpreting and validating workbook requirements…"):
-            response = interpret_requirements(request_text)
+        workbook_data = upload.getvalue()
+        try:
+            with st.spinner("Reading and validating the completed template…"):
+                spec = workbook_to_spec(workbook_data)
+            response = AgentResponse(
+                spec=spec,
+                summary=(
+                    f"Validated the completed template for {spec.instance_alias} "
+                    "without an AI model call."
+                ),
+            )
+        except NotTemplateWorkbookError:
+            request_text = workbook_to_prompt(workbook_data, upload.name)
+            with st.spinner("Interpreting the unstructured workbook with OpenRouter…"):
+                response = interpret_requirements(request_text)
         if response.spec is None:
             clarification = response.clarification_question or response.summary
             missing = ", ".join(response.missing_fields)
@@ -238,7 +293,7 @@ if generate_clicked and upload is not None:
     except Exception as exc:
         st.session_state.pop("upload_response", None)
         st.session_state.pop("upload_source", None)
-        st.error(f"I couldn’t generate the package: {exc}")
+        st.error(f"I couldn’t generate the package: {workbook_error_message(exc)}")
 
 if (
     upload is not None
@@ -247,3 +302,38 @@ if (
 ):
     st.divider()
     show_package(st.session_state.upload_response, "upload")
+
+st.divider()
+manual_response, manual_submitted = manual_builder()
+if manual_submitted:
+    if manual_response is None:
+        st.session_state.pop("manual_response", None)
+    else:
+        st.session_state.manual_response = manual_response
+
+if "manual_response" in st.session_state:
+    st.divider()
+    show_package(st.session_state.manual_response, "manual")
+
+st.divider()
+dnis_flow_files, dnis_flow_submitted, dnis_flow_name = existing_dnis_flow_builder()
+if dnis_flow_submitted:
+    if dnis_flow_files is None:
+        st.session_state.pop("dnis_flow_files", None)
+        st.session_state.pop("dnis_flow_name", None)
+    else:
+        st.session_state.dnis_flow_files = dnis_flow_files
+        st.session_state.dnis_flow_name = dnis_flow_name
+
+if "dnis_flow_files" in st.session_state:
+    st.divider()
+    safe_flow_name = (st.session_state.dnis_flow_name or "contact-flow").replace(" ", "-")
+    show_focused_package(
+        st.session_state.dnis_flow_files,
+        summary=(
+            f"Created Terraform to associate **{st.session_state.dnis_flow_name}** "
+            "with the existing DNIS."
+        ),
+        filename=f"{safe_flow_name}-existing-dnis-terraform.zip",
+        key_prefix="existing_dnis",
+    )

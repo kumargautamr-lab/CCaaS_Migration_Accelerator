@@ -45,7 +45,11 @@ def build_model() -> BaseChatModel:
         temperature=0,
         timeout=60,
         max_retries=2,
-        extra_body={"plugins": [{"id": "response-healing"}]},
+        max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
+        extra_body={
+            "plugins": [{"id": "response-healing"}],
+            "provider": {"require_parameters": True},
+        },
     )
 
 
@@ -117,9 +121,11 @@ def _interpret_with_json_fallback(
             model_name = os.getenv("OPENROUTER_MODEL", "the configured model")
             raise RuntimeError(
                 f"OpenRouter model '{model_name}' did not return valid structured JSON "
-                "after strict-schema and JSON-repair attempts. Choose a model whose "
-                "OpenRouter page lists 'structured_outputs' or 'response_format'. "
-                f"Last parser error: {str(second_error)[:800]}"
+                "after strict-schema and JSON-repair attempts. The response may have "
+                "been truncated or the model may not support structured output. Choose "
+                "a model whose OpenRouter page lists 'structured_outputs' or "
+                "'response_format'. No workbook content is included in this error. "
+                f"Parser type: {type(second_error).__name__}."
             ) from structured_error
 
 
