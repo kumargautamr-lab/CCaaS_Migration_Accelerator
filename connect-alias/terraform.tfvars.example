@@ -1,0 +1,4 @@
+# Never commit this file. Supply values through your approved secret store.
+agent_passwords = {
+  "James123" = "REPLACE_USING_SECRET_INJECTION"
+}
