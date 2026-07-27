@@ -12,6 +12,7 @@ from connect_agent.input_parser import (
     workbook_to_prompt,
     workbook_to_spec,
 )
+from connect_agent.github_ui import github_publish_panel
 from connect_agent.manual_ui import existing_dnis_flow_builder, manual_builder
 from connect_agent.models import AgentResponse
 from connect_agent.terraform import files_to_zip, render_files
@@ -172,6 +173,12 @@ def show_package(response: AgentResponse, key_prefix: str) -> None:
         type="primary",
         key=f"{key_prefix}_download",
     )
+    github_publish_panel(
+        files,
+        key_prefix=key_prefix,
+        default_directory=response.spec.instance_alias,
+        default_commit_message=f"Add generated Terraform for {response.spec.instance_alias}",
+    )
 
 
 def workbook_error_message(exc: Exception) -> str:
@@ -207,6 +214,13 @@ def show_focused_package(
         type="primary",
         key=f"{key_prefix}_download",
         use_container_width=True,
+    )
+    safe_directory = filename.rsplit(".zip", 1)[0] or "terraform"
+    github_publish_panel(
+        files,
+        key_prefix=key_prefix,
+        default_directory=safe_directory,
+        default_commit_message=f"Add generated Terraform: {safe_directory}",
     )
 
 

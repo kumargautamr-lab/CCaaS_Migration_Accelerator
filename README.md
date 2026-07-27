@@ -11,6 +11,7 @@ AWS Connect Migration Accelerator Tool is a local LangChain + OpenRouter + Strea
 - validates identity-management rules and AWS-region syntax
 - renders Terraform deterministically; the model never emits arbitrary HCL
 - previews and downloads `main.tf`, `variables.tf`, and `outputs.tf` as a ZIP
+- optionally commits the same generated files straight to a GitHub repository (PyGithub)
 - creates routing skills as queues plus routing profiles and assigns agents to them
 - creates users whose initial passwords are supplied only through a sensitive Terraform variable
 - creates JSON contact flows using the Amazon Connect Flow language
@@ -74,6 +75,36 @@ The HashiCorp AWS provider does not currently expose Amazon Connect user profici
 ## DNIS behavior
 
 Terraform can claim an available number by country, type, and optional E.164 prefix, then associate it with a contact flow. A prefix filters available inventory; it does not guarantee that AWS will allocate one exact phone number. Existing numbers need to be imported into Terraform state first.
+
+## Publish to GitHub
+
+Every generated package has a **Publish Terraform to GitHub** panel next to its
+download button. It commits the exact files from the download — `main.tf`,
+`variables.tf`, `outputs.tf`, and `terraform.tfvars.example` when present — to a
+repository you own, using [PyGithub](https://pygithub.readthedocs.io/) and the
+GitHub Git Data API. All files land in a single atomic commit so the committed
+tree always matches the ZIP.
+
+In the panel, supply:
+
+- **Repository** in `owner/name` form
+- **Branch** to commit to (created from the repository's default branch if it does not exist)
+- **Target directory** for the files (leave blank to commit to the repository root)
+- **GitHub token** — a fine-grained personal access token with **Contents: write**
+  permission on the target repository
+- **Commit message**
+
+The token is used only for that single request and is never written to disk by the
+application. For local convenience you can prefill the form by setting `GITHUB_TOKEN`,
+`GITHUB_REPOSITORY`, `GITHUB_BRANCH`, and `GITHUB_TARGET_DIRECTORY` in `.env`; set
+`GITHUB_API_URL` to target GitHub Enterprise Server. Never commit real tokens.
+
+Publishing writes source files only. As with the downloaded package, the tool never
+runs `terraform plan` or `terraform apply` — review the committed files and run
+Terraform separately with human approval.
+
+Do not enable `terraform.tfvars` for commit: the `.gitignore` in this project ignores
+it, and the generated `terraform.tfvars.example` only contains placeholder secrets.
 
 ## AWS authentication
 
