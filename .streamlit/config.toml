@@ -1,0 +1,6 @@
+# Hide Streamlit's built-in "Deploy" button (it deploys the app to Streamlit
+# Community Cloud and is irrelevant to this tool). "viewer" removes the Deploy
+# button and developer options while keeping the app menu (settings, rerun,
+# print). Terraform is pushed via the in-app "Deploy Terraform to GitHub" button.
+[client]
+toolbarMode = "viewer"
