@@ -176,7 +176,6 @@ def show_package(response: AgentResponse, key_prefix: str) -> None:
     github_publish_panel(
         files,
         key_prefix=key_prefix,
-        default_directory=response.spec.instance_alias,
         default_commit_message=f"Add generated Terraform for {response.spec.instance_alias}",
     )
 
@@ -219,7 +218,6 @@ def show_focused_package(
     github_publish_panel(
         files,
         key_prefix=key_prefix,
-        default_directory=safe_directory,
         default_commit_message=f"Add generated Terraform: {safe_directory}",
     )
 
